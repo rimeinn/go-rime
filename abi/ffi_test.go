@@ -3,6 +3,7 @@
 package abi
 
 import (
+	"debug/pe"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -14,12 +15,19 @@ import (
 
 func buildFFI(t *testing.T, define ...string) string {
 	t.Helper()
+	cc := cCompiler(t)
 	flags := []string{"-std=c11", "-shared", "-fPIC"}
 	name := "fixture.so"
 	switch runtime.GOOS {
 	case "windows":
 		flags = []string{"-std=c11", "-shared"}
 		name = "fixture.dll"
+		if runtime.GOARCH == "arm64" && strings.EqualFold(filepath.Base(cc), "clang.exe") {
+			// The fixture only needs compiler headers and has no DLL entry point.
+			// Link it without MSVC or Windows SDK runtime libraries.
+			flags = append(flags, "--target=aarch64-pc-windows-msvc", "-ffreestanding",
+				"-fuse-ld=lld", "-nostdlib", "-Wl,/noentry")
+		}
 	case "darwin":
 		flags[1] = "-dynamiclib"
 		name = "fixture.dylib"
@@ -28,7 +36,21 @@ func buildFFI(t *testing.T, define ...string) string {
 		flags = append(flags, "-D"+flag)
 	}
 	path := filepath.Join(t.TempDir(), name)
-	runCommand(t, cCompiler(t), append(flags, "testdata/ffi.c", "-o", path)...)
+	runCommand(t, cc, append(flags, "testdata/ffi.c", "-o", path)...)
+	if runtime.GOOS == "windows" {
+		dll, err := pe.Open(path)
+		if err != nil {
+			t.Fatalf("inspect DLL built by %q: %v", cc, err)
+		}
+		defer dll.Close()
+		want := uint16(pe.IMAGE_FILE_MACHINE_AMD64)
+		if runtime.GOARCH == "arm64" {
+			want = pe.IMAGE_FILE_MACHINE_ARM64
+		}
+		if dll.Machine != want {
+			t.Fatalf("%q built a DLL with PE machine %#04x, want %#04x for windows/%s", cc, dll.Machine, want, runtime.GOARCH)
+		}
+	}
 	return path
 }
 

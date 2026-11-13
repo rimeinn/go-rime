@@ -22,7 +22,12 @@ func cCompiler(t *testing.T) string {
 		}
 		return path
 	}
-	for _, cc := range []string{"cc", "gcc", "clang"} {
+	compilers := []string{"cc", "gcc", "clang"}
+	if runtime.GOOS == "windows" && runtime.GOARCH == "arm64" {
+		// An ARM64 Windows machine can have an x64 MinGW compiler on PATH.
+		compilers = []string{"clang", "cc", "gcc"}
+	}
+	for _, cc := range compilers {
 		if path, err := exec.LookPath(cc); err == nil {
 			return path
 		}

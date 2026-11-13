@@ -50,6 +50,10 @@ jobs:
           if (!$dll -or !$header) { throw 'Missing librime DLL or C header' }
           "GO_RIME_TEST_LIBRARY=$($dll.FullName)" >> $env:GITHUB_ENV
           "RIME_INCLUDE_DIR=$($header.DirectoryName)" >> $env:GITHUB_ENV
+      - name: Select Clang on Windows ARM64
+        if: runner.os == 'Windows' && runner.arch == 'ARM64'
+        shell: pwsh
+        run: '"CC=clang" >> $env:GITHUB_ENV'
       - run: go test -v ./...
       - run: go build ./...
       - run: go vet ./...
