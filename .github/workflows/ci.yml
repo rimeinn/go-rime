@@ -1,0 +1,60 @@
+name: Go
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+env:
+  CGO_ENABLED: '0'
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel, windows-2025, windows-11-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+      - name: Install librime on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librime-dev
+          echo 'GO_RIME_TEST_LIBRARY=librime.so.1' >> "$GITHUB_ENV"
+          echo 'RIME_INCLUDE_DIR=/usr/include' >> "$GITHUB_ENV"
+      - name: Install librime on macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew install librime
+          prefix=$(brew --prefix librime)
+          echo "GO_RIME_TEST_LIBRARY=$prefix/lib/librime.dylib" >> "$GITHUB_ENV"
+          echo "RIME_INCLUDE_DIR=$prefix/include" >> "$GITHUB_ENV"
+      - name: Install librime on Windows x64
+        if: runner.os == 'Windows' && runner.arch == 'X64'
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'librime.7z'
+          $native = Join-Path $env:RUNNER_TEMP 'librime'
+          Invoke-WebRequest 'https://github.com/rime/librime/releases/download/1.17.0/rime-33e7814-Windows-msvc-x64.7z' -OutFile $archive
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash
+          if ($hash -ne '7478c7caa4ff6b37de86daba1f7ce4a994a4f5ba24872a820fb2b3a9b01fed15') { throw 'Unexpected librime archive checksum' }
+          7z x $archive "-o$native" -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $dll = Get-ChildItem -LiteralPath $native -Recurse -File -Filter rime.dll | Select-Object -First 1
+          $header = Get-ChildItem -LiteralPath $native -Recurse -File -Filter rime_api.h | Select-Object -First 1
+          if (!$dll -or !$header) { throw 'Missing librime DLL or C header' }
+          "GO_RIME_TEST_LIBRARY=$($dll.FullName)" >> $env:GITHUB_ENV
+          "RIME_INCLUDE_DIR=$($header.DirectoryName)" >> $env:GITHUB_ENV
+      - run: go test -v ./...
+      - run: go build ./...
+      - run: go vet ./...
+      - name: Verify generated ABI bindings
+        if: runner.os == 'Linux' && runner.arch == 'X64'
+        run: |
+          go generate ./abi
+          git diff --exit-code

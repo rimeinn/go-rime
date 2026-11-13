@@ -1,0 +1,8 @@
+---
+name: go_rime_test
+version: '1.0'
+sort: by_weight
+...
+你好	ni	100
+你	ni	50
+泥	ni	25

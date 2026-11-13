@@ -1,0 +1,22 @@
+schema:
+  schema_id: go_rime_test
+  name: Go Rime Test
+  version: '1.0'
+switches:
+  - name: ascii_mode
+    reset: 0
+    states: [中文, 西文]
+engine:
+  processors: [speller, selector, express_editor]
+  segmentors: [abc_segmentor, fallback_segmentor]
+  translators: [table_translator]
+speller:
+  alphabet: abcdefghijklmnopqrstuvwxyz
+  delimiter: " '"
+translator:
+  dictionary: go_rime_test
+  enable_user_dict: false
+  enable_sentence: false
+  enable_completion: false
+menu:
+  page_size: 2

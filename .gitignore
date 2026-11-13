@@ -1,0 +1,26 @@
+# Build output and local shared libraries
+/bin/
+/build/
+/dist/
+/console
+/config
+*.exe
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Test binaries, profiles, and local deployment output
+*.test
+*.prof
+coverage.out
+coverage.html
+/.test-deploy/
+
+# Local Go workspace
+/go.work
+/go.work.sum
+
+# OS metadata
+.DS_Store
+Thumbs.db
